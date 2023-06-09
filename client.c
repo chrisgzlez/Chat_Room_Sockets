@@ -23,6 +23,11 @@
 
 
 typedef struct {
+    char name[100];
+    int socket_id;
+} user_t;
+
+typedef struct {
     char text[MAX_MSSG_SIZE];
     char user_name[100];
     // ...
@@ -51,8 +56,8 @@ void *chat_display(void *args);
 // Deals with writing messages
 void *write_messages(void *args);
 
+void init_signal_handler(void) {
 
-int main(int argc, char** argv) {
     struct sigaction sa;
     sa.sa_handler = handle_signal;
     sigemptyset(&sa.sa_mask);
@@ -62,6 +67,11 @@ int main(int argc, char** argv) {
         handle_error("Error binding the signal handler\n", 1);
     }
 
+}
+
+int main(int argc, char** argv) {
+
+    init_signal_handler();
 
     struct sockaddr_in  ip_server;
     socklen_t           size = sizeof(struct sockaddr_in);
@@ -85,7 +95,6 @@ int main(int argc, char** argv) {
         handle_error("Error converting ip to network format\n", 1);
     }
 
-
     // Create Client socket
     if ((id_client = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
         handle_error("Could not create client socket", 1);
@@ -97,64 +106,64 @@ int main(int argc, char** argv) {
     }
     
     char ip_text[20], server_name[100];
+
+    pthread_t write_thread, read_thread;
+
+    user_t user;
+    user.socket_id = id_client;
+    strcpy(user.name, "Christian");
+
+
     inet_ntop(ip_server.sin_family, &ip_server.sin_addr, ip_text, INET_ADDRSTRLEN);
     sprintf(server_name, "%s:%u", ip_text, ntohs(ip_server.sin_port));
 
-    char mssg[MAX_MSSG_SIZE];
-    pthread_t write_thread, read_thread;
-    while(1) {
-
-        if(pthread_create(&write_thread, NULL, write_messages, (void*)&id_client)) {
-            handle_error("Could not create writing thread\n", 1);
-        }
-
-        if(pthread_create(&read_thread, NULL, chat_display, (void*)&id_client)) {
-            handle_error("Could not create reading thread\n", 1);
-        }
-
-        mssg[0] = '\0';
-
-
-        if(recv(id_client, mssg, MAX_MSSG_SIZE, 0) < 0) {
-            handle_error("Could not receive message\n", 1);
-        }
-
-        fprintf(stdout, "%s >> %s", server_name, mssg);
-
+    if(pthread_create(&write_thread, NULL, write_messages, (void*)&user)) {
+        handle_error("Could not create writing thread\n", 1);
     }
+
+    if(pthread_create(&read_thread, NULL, chat_display, (void*)&user)) {
+        handle_error("Could not create reading thread\n", 1);
+    }
+
+    pthread_join(write_thread, NULL);
+    pthread_join(read_thread, NULL);
 
     close(id_client);
 }
 
 void *write_messages(void *args) {
-    int socket_id = *(int*)args;
+    user_t user = *(user_t*)args;
     message mssg;
+    strcpy(mssg.user_name, user.name);
+
     while(1) {
 
         mssg.text[0] = '\0';
 
-        fprintf(stdout, ">> ");
+        fprintf(stdout, "\r\n>> ");
         fgets(mssg.text, MAX_MSSG_SIZE, stdin);
 
-        if(send(id_client, &mssg, MAX_MSSG_SIZE, 0) < 0) {
+        if(send(user.socket_id, &mssg, MAX_MSSG_SIZE, 0) < 0) {
             handle_error("Could not send message\n", 1);
         }
+
     }
 
 }
 
 void *chat_display(void *args) {
-    int socket_id = *(int*)args;
+    user_t user = *(user_t*)args;
     message mssg;
     while(1) {
 
         mssg.text[0] = '\0';
+        mssg.user_name[0] = '\0';
 
-        if(recv(id_client, &mssg, MAX_MSSG_SIZE, 0) < 0) {
+        if(recv(user.socket_id, &mssg, MAX_MSSG_SIZE, 0) < 0) {
             handle_error("Could not receive message\n", 1);
         }
 
-        fprintf(stdout, "%s >> %s", mssg.user_name, mssg.text);
+        fprintf(stdout, "\r\n%s >> %s", mssg.user_name, mssg.text);
     }
 }
 

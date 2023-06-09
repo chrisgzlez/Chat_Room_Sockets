@@ -18,6 +18,20 @@
     "2) Join Chat Room\n" \
     "Option: "
 
+
+
+typedef struct {
+    char name[100];
+    int socket_id;
+} user_t;
+
+typedef struct {
+    char text[MAX_MSSG_SIZE];
+    char user_name[100];
+    // ...
+} message;
+
+
 /**
  * Funcion para manejar los errores
  */
@@ -90,7 +104,7 @@ int main(int argc, char** argv) {
         int     bytes_recv = 0, bytes_sent = 0;
         char    mssg[MAX_MSSG_SIZE];
         while(1) {
-
+             
             bytes_recv = 0, bytes_sent = 0;
             mssg[0] = '\0';
 
